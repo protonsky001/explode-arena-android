@@ -1,28 +1,83 @@
 package com.explodearena.port;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 
 /** Explode Arena - native Android port. Hosts the original game engine and shows its screen. */
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements GameView.Listener {
+    private static final String PREFS = "explode_arena";
+    private static final String PREF_ORIENTATION = "orientation";
+    private static final int ORIENT_PORTRAIT = 0, ORIENT_LANDSCAPE = 1, ORIENT_AUTO = 2;
+
     private Engine engine;
     private AudioOut audio;
     private GameView view;
+    private SharedPreferences prefs;
+    private int orientationMode = ORIENT_PORTRAIT;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        orientationMode = prefs.getInt(PREF_ORIENTATION, ORIENT_PORTRAIT);
+        applyOrientation();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         view = new GameView(this);
+        view.setListener(this);
         engine = new Engine(this, view);
         view.setEngine(engine);
         audio = new AudioOut(engine);
         setContentView(view);
         engine.start();
         audio.start();
+    }
+
+    private void applyOrientation() {
+        switch (orientationMode) {
+            case ORIENT_LANDSCAPE:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                break;
+            case ORIENT_AUTO:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
+                break;
+            default:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                break;
+        }
+    }
+
+    /** Called by the gear button on the touch overlay. */
+    @Override
+    public void onSettingsRequested() {
+        final String[] items = {"Portrait", "Landscape", "Auto-rotate"};
+        engine.setPaused(true);
+        new AlertDialog.Builder(this)
+                .setTitle("Screen orientation")
+                .setSingleChoiceItems(items, orientationMode, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        orientationMode = which;
+                        prefs.edit().putInt(PREF_ORIENTATION, which).apply();
+                        applyOrientation();
+                        dialog.dismiss();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .setOnDismissListener(new DialogInterface.OnDismissListener() {
+                    @Override
+                    public void onDismiss(DialogInterface dialog) {
+                        engine.setPaused(false);
+                        hideSystemUi();
+                    }
+                })
+                .show();
     }
 
     @Override
@@ -91,13 +146,14 @@ public class MainActivity extends Activity {
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_SPACE:
             case KeyEvent.KEYCODE_BUTTON_A: return Keys.FIRE;
+            case KeyEvent.KEYCODE_BUTTON_Y:
+            case KeyEvent.KEYCODE_BUTTON_R1: return Keys.DIGIT_8;      // detonator
             case KeyEvent.KEYCODE_MENU:
             case KeyEvent.KEYCODE_BUTTON_X: return Keys.LSK;
             case KeyEvent.KEYCODE_BACK:
             case KeyEvent.KEYCODE_ESCAPE:
             case KeyEvent.KEYCODE_BUTTON_B: return Keys.RSK;
-            case KeyEvent.KEYCODE_DEL:
-            case KeyEvent.KEYCODE_BUTTON_Y: return Keys.CLEAR;
+            case KeyEvent.KEYCODE_DEL: return Keys.CLEAR;
             default:
                 if (code >= KeyEvent.KEYCODE_0 && code <= KeyEvent.KEYCODE_9) {
                     return Keys.DIGIT_0 + (code - KeyEvent.KEYCODE_0);
@@ -116,10 +172,12 @@ public class MainActivity extends Activity {
             return super.dispatchKeyEvent(e);
         }
         if (e.getRepeatCount() == 0) {
-            if (e.getAction() == KeyEvent.ACTION_DOWN) {
-                engine.postKey(scan, true);
-            } else if (e.getAction() == KeyEvent.ACTION_UP) {
-                engine.postKey(scan, false);
+            boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
+            if (down || e.getAction() == KeyEvent.ACTION_UP) {
+                engine.postKey(scan, down);
+                if (scan == Keys.FIRE) {
+                    engine.postKey(Keys.DIGIT_5, down);   // key 5 = bomb in the default keyboard layout
+                }
             }
         }
         return true;

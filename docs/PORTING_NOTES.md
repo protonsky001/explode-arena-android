@@ -29,6 +29,12 @@ Five 8x8 tile blitters (`0x028468`, `0x028784`, `0x028934`, `0x028c80`, `0x028d7
 session of ~2,500 frames (menus, hero select, gameplay) produces **bit-identical frames** with and without the shortcuts,
 and the core is clean under AddressSanitizer/UBSan.
 
+## Input
+The original key handler maps Symbian scan codes to logical keys. In the game's default keyboard layout the bomb is on
+keys 4/5/6 and the detonator on 7/8/9 (menus select with the joystick press), so the on-screen BOMB button sends joystick-press +
+key 5 and DET sends key 8. `KeyFeeder` keeps every press visible to the engine for at least one frame, because the game polls key
+state once per frame.
+
 ## Speed
 Typical frames cost 0.2-4 M guest instructions (the original needed ~30 MIPS at 32 fps; the shortcuts cut this by
 about 60 %). Loading a level is one heavier frame (~58 M instructions). Boot is ~59 M instructions.

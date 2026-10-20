@@ -26,17 +26,29 @@ ARM interpreter, and this project supplies the handful of Symbian OS services th
 | On screen | Original phone key |
 |---|---|
 | D-pad | joystick / arrow keys (move, menu navigation) |
-| FIRE | joystick press (drop bomb, select) |
+| **BOMB** | joystick press **+ key 5** - selects in menus and drops a bomb in the game |
+| **DET** | key 8 - the detonator power-up |
 | LEFT / RIGHT | left / right soft key (e.g. BACK, PROCEED) |
+| gear icon | **Settings**: screen orientation - Portrait, Landscape or Auto-rotate (remembered) |
 
-Hardware keyboard or gamepad: arrows / D-pad, Enter / Space / A = fire, Menu / X = left soft key,
+The game's default keyboard layout ("A") uses keys 4/5/6 for the bomb and 7/8/9 for the detonator, and the joystick
+press only selects in menus - that is why BOMB sends both. You can change layouts in the game under Options -> Keyboard.
+
+Hardware keyboard or gamepad: arrows / D-pad, Enter / Space / A = bomb, Y / R1 = detonator, Menu / X = left soft key,
 Back / Esc / B = right soft key, digits 0-9, Backspace = C. Settings are saved to `game.cfg` in the app's private storage.
+
+In landscape the game picture is centred and as tall as possible, with the d-pad on the left and DET / BOMB on the right.
+
+## Updating
+
+Builds are signed with the fixed debug key in `app/debug.keystore`, so a new APK installs over the previous one and keeps
+your settings. (If you installed an earlier build that was signed with a different key, uninstall it once first.)
 
 ## Known limitations
 
 * **Bluetooth multiplayer is not available.** The MULTIPLAYER lobby opens but finds no devices.
 * The game runs exactly as it did on an unregistered phone (a dummy device ID is used; no real identifiers are read).
-* Portrait only, like the original 176x208 screen. Audio has roughly a tenth of a second of latency.
+* The game picture keeps the original 176x208 aspect ratio, in portrait or landscape. Audio has roughly a tenth of a second of latency.
 
 ## Repository layout
 
@@ -57,4 +69,11 @@ docs/                             porting notes and the reverse-engineering repo
 gcc -O2 -I app/src/main/cpp -o dev app/src/main/cpp/ea_host.c tools/desktop/dev_main.c -lpthread
 printf 'boot\nrun 440\ndump menu.ppm\n' > script.txt
 ./dev app/src/main/assets/ea script.txt
+```
+
+Key-timing unit test (plain Java):
+
+```
+javac -d /tmp/k app/src/main/java/com/explodearena/port/KeyFeeder.java tools/test/KeyFeederTest.java
+java -cp /tmp/k com.explodearena.port.KeyFeederTest
 ```

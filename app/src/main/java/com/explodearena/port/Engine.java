@@ -26,9 +26,12 @@ final class Engine implements Runnable {
 
     private final Context context;
     private final Host host;
-    private final Object keyLock = new Object();
-    private final int[] keyQueue = new int[512];
-    private int keyCount = 0;
+    private final KeyFeeder keys = new KeyFeeder(new KeyFeeder.Sink() {
+        @Override
+        public void key(int scanCode, boolean down) {
+            Native.key(scanCode, down);
+        }
+    });
     private final int[] pixels = new int[176 * 208];
 
     private volatile boolean running = true;
@@ -76,28 +79,7 @@ final class Engine implements Runnable {
 
     /** Thread-safe: may be called from the UI thread. */
     void postKey(int scanCode, boolean down) {
-        synchronized (keyLock) {
-            if (keyCount < keyQueue.length) {
-                keyQueue[keyCount++] = (scanCode << 1) | (down ? 1 : 0);
-            }
-        }
-    }
-
-    private void drainKeys() {
-        int n;
-        int[] local;
-        synchronized (keyLock) {
-            n = keyCount;
-            if (n == 0) {
-                return;
-            }
-            local = new int[n];
-            System.arraycopy(keyQueue, 0, local, 0, n);
-            keyCount = 0;
-        }
-        for (int i = 0; i < n; i++) {
-            Native.key(local[i] >> 1, (local[i] & 1) != 0);
-        }
+        keys.post(scanCode, down);
     }
 
     private static byte[] readAll(InputStream in) throws IOException {
@@ -162,6 +144,7 @@ final class Engine implements Runnable {
             return false;
         }
         host.showStatus("Restarting game...");
+        keys.clear();
         Native.reset();
         return Native.boot() == 0;
     }
@@ -199,7 +182,7 @@ final class Engine implements Runnable {
                 next = System.nanoTime();
                 continue;
             }
-            drainKeys();
+            keys.drain();
             int ticks = (int) (((System.nanoTime() - start) * 64L) / 1000000000L);
             if (Native.frame(ticks) < 0) {
                 if (!recover()) {
